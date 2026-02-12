@@ -1,4 +1,4 @@
-Original prompt: Build a personalised maths learning web game for "Henry Gilmore", a Year 4 New Zealand student who loves Pokemon, Ninjago Lego, and Minecraft. Follow the NZ Year 4 Mathematics and Statistics curriculum teaching sequence. Game should be visually appealing, addictive, and encourage repeated play.
+﻿Original prompt: Build a personalised maths learning web game for "Henry Gilmore", a Year 4 New Zealand student who loves Pokemon, Ninjago Lego, and Minecraft. Follow the NZ Year 4 Mathematics and Statistics curriculum teaching sequence. Game should be visually appealing, addictive, and encourage repeated play.
 
 ## Architecture
 - Single index.html with embedded CSS/JS (~1200 lines)
@@ -45,3 +45,46 @@ Original prompt: Build a personalised maths learning web game for "Henry Gilmore
 - Could add more question variety (e.g., visual fraction questions, clock face rendering)
 - Boss battles (3rd+ attempt) could have unique mechanics
 - Could add a leaderboard or parent dashboard
+
+## 2026-02-12 Creative + Gameplay Iteration (playtested)
+
+### Playtest findings vs modern indie web game quality
+- Core loop is fun, but missing stronger short-cycle meta goals and tactical decisions.
+- World/strand identity needed clearer on battle and topic screens.
+- Replayability gap after first completion pass (needed a faster repeat mode).
+- Achievement bug: combo achievement checked lifetime correct answers instead of combo performance.
+- Automation stability issue: `window.advanceTime` was a no-op, reducing deterministic test reliability.
+
+### Implemented this pass
+- [x] Added world biome identity text and themed battle context (`Electric City`, etc.).
+- [x] Added `Speed Round` mode button on completed topics (7 questions, faster timer, bonus XP).
+- [x] Added battle mode indicator in header (biome + speed mode label).
+- [x] Added Elemental Power system in battle:
+  - Charge meter (`0/5`) gained from correct answers and combo milestones.
+  - `Shield` (1 charge): blocks one miss/timeout combo break.
+  - `Time Freeze` (2 charge): restores +8s timer.
+  - `Storm Strike` (2 charge): direct enemy HP damage.
+- [x] Added combo burst feedback callouts for charge milestones and power usage.
+- [x] Added Daily Ninja Quest panel on map:
+  - Goals: Answer 10, Correct 8, Win 1 battle.
+  - Claim reward button grants +30 XP once complete.
+- [x] Fixed combo achievement logic to use best combo (`bestCombo >= 5`) instead of `totalCorrect >= 50`.
+- [x] Added `bestCombo` and `totalWins` tracking in save/state and stats.
+- [x] Added inline SVG favicon to remove favicon 404 console noise.
+- [x] Implemented functional `window.advanceTime(ms)` (promise-based delay) for test loop compatibility.
+
+### Playtest verification completed
+- [x] Manual full flow with Playwright MCP:
+  - Title -> map -> world -> topic -> battle -> results -> topic -> map.
+  - Verified world biome labels visible in topic and battle header.
+  - Verified speed button appears after repeated completion.
+  - Verified charge meter increments with correct answers.
+  - Verified Shield blocks miss without normal penalty feedback.
+  - Verified Time Freeze and Storm Strike consume charge and update UI/state.
+  - Verified no new console errors.
+- [x] Scripted Playwright client run with screenshot/state capture (`output/web-game/playtest-final`).
+
+### Remaining ideas / next agent
+- Add a dedicated visual timer value to make Time Freeze impact more obvious.
+- Add one optional “Quest Complete” celebration overlay when daily reward is claimable.
+- Add a small parent dashboard card for world-by-world readiness and weak-skill hints.

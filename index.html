@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>MathSkillz - Henry's Math Adventure</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%231a1a2e'/%3E%3Ctext x='32' y='42' font-size='36' text-anchor='middle'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Fredoka+One&family=Nunito:wght@400;700;900&display=swap');
 
@@ -109,6 +110,15 @@ html, body { width:100%; height:100%; overflow:hidden; font-family:'Nunito',sans
 .topic-row .topic-name { font-family:'Fredoka One',sans-serif; font-size:clamp(12px,2vw,16px); }
 .topic-row .topic-desc { font-size:clamp(9px,1.5vw,12px); opacity:0.7; }
 .topic-stars { display:flex; gap:2px; font-size:16px; }
+.topic-speed-btn {
+  border:none; border-radius:8px; padding:6px 10px; margin-left:8px;
+  background:linear-gradient(180deg,#ffd700,#cc9f00); color:#1a1a2e;
+  font-family:'Fredoka One',sans-serif; font-size:11px; cursor:pointer;
+}
+.topic-speed-btn:hover { transform:translateY(-1px); }
+.world-biome-label {
+  color:#cce8ff; font-size:12px; letter-spacing:0.3px; margin-top:4px;
+}
 
 /* Battle Screen */
 #battle-screen {
@@ -167,6 +177,32 @@ html, body { width:100%; height:100%; overflow:hidden; font-family:'Nunito',sans
 .combo-display {
   color:var(--mc-gold); font-family:'Press Start 2P',monospace;
   font-size:clamp(10px,2vw,16px); text-align:right;
+}
+.power-hud {
+  display:flex; flex-direction:column; gap:6px; align-items:flex-end;
+}
+.power-charge {
+  color:#ffe066; font-family:'Fredoka One',sans-serif; font-size:14px;
+  background:rgba(0,0,0,0.35); border:1px solid rgba(255,224,102,0.4);
+  border-radius:10px; padding:4px 8px;
+}
+.power-buttons { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; max-width:300px; }
+.power-btn {
+  border:none; border-radius:8px; padding:6px 8px; cursor:pointer;
+  font-size:10px; font-family:'Fredoka One',sans-serif; color:#fff;
+  background:linear-gradient(180deg,#3b4cca,#243182);
+}
+.power-btn:disabled { cursor:not-allowed; opacity:0.35; }
+.combo-burst {
+  position:absolute; top:12px; left:50%; transform:translateX(-50%);
+  z-index:25; color:#fff; background:rgba(59,76,202,0.85);
+  border:2px solid #ffd700; border-radius:12px; padding:8px 16px;
+  font-family:'Fredoka One',sans-serif; font-size:14px; animation:burstPop 0.8s ease-out forwards;
+}
+@keyframes burstPop {
+  0% { opacity:0; transform:translateX(-50%) scale(0.5); }
+  20% { opacity:1; transform:translateX(-50%) scale(1.08); }
+  100% { opacity:0; transform:translateX(-50%) translateY(-28px) scale(0.96); }
 }
 
 /* Results Screen */
@@ -386,6 +422,7 @@ html, body { width:100%; height:100%; overflow:hidden; font-family:'Nunito',sans
         <span id="streak-display">&#128293;0</span>
       </div>
     </div>
+    <div id="quest-panel" style="position:absolute;right:10px;bottom:10px;z-index:8;max-width:280px"></div>
     <div class="worlds-container" id="worlds-container"></div>
   </div>
 
@@ -394,6 +431,7 @@ html, body { width:100%; height:100%; overflow:hidden; font-family:'Nunito',sans
     <button class="back-btn" onclick="G.showScreen('map-screen')">&#8592;</button>
     <div style="padding-top:50px;color:#fff;text-align:center">
       <h2 id="world-title" style="font-family:'Fredoka One',sans-serif;color:var(--mc-gold)"></h2>
+      <div id="world-biome" class="world-biome-label"></div>
     </div>
     <div class="topics-grid" id="topics-grid"></div>
   </div>
@@ -403,6 +441,7 @@ html, body { width:100%; height:100%; overflow:hidden; font-family:'Nunito',sans
     <div class="battle-header">
       <div class="battle-info"><span id="battle-topic-name"></span></div>
       <div class="battle-info"><span id="battle-question-num"></span></div>
+      <div class="battle-info"><span id="battle-mode"></span></div>
     </div>
     <div class="timer-bar"><div class="timer-fill" id="timer-fill"></div></div>
     <div class="enemy-area">
@@ -423,6 +462,14 @@ html, body { width:100%; height:100%; overflow:hidden; font-family:'Nunito',sans
       <div class="combo-display">
         <div id="combo-text"></div>
         <div id="streak-battle"></div>
+      </div>
+      <div class="power-hud">
+        <div class="power-charge" id="power-charge">&#9889; 0/5 Elemental Charge</div>
+        <div class="power-buttons">
+          <button class="power-btn" id="power-storm" onclick="G.usePower('storm')">Storm Strike (2)</button>
+          <button class="power-btn" id="power-freeze" onclick="G.usePower('freeze')">Time Freeze (2)</button>
+          <button class="power-btn" id="power-shield" onclick="G.usePower('shield')">Shield (1)</button>
+        </div>
       </div>
     </div>
   </div>
@@ -489,6 +536,9 @@ const G = (() => {
       collection: [], // creature IDs collected
       achievements: [], // achievement IDs earned
       totalCorrect: 0, totalAnswered: 0, totalBattles: 0,
+      totalWins: 0,
+      bestCombo: 0,
+      dailyQuest: null,
     };
   }
   let save = defaultSave();
@@ -500,6 +550,20 @@ const G = (() => {
   }
   function saveGame() {
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e) {}
+  }
+
+  function ensureDailyQuest() {
+    const today = new Date().toDateString();
+    if (!save.dailyQuest || save.dailyQuest.date !== today) {
+      save.dailyQuest = {
+        date: today,
+        startAnswered: save.totalAnswered,
+        startCorrect: save.totalCorrect,
+        startWins: save.totalWins || 0,
+        claimed: false,
+      };
+      saveGame();
+    }
   }
 
   // ---- CONSTANTS ----
@@ -544,6 +608,14 @@ const G = (() => {
   ];
 
   const XP_PER_LEVEL = level => 80 + level * 20;
+
+  const WORLD_THEMES = {
+    number: { biome: 'Electric City', accent: '#54b6ff', battleBg: 'linear-gradient(180deg,#0f2a4d 0%,#122843 100%)' },
+    algebra: { biome: 'Gear Forge', accent: '#ff9b3d', battleBg: 'linear-gradient(180deg,#3a2618 0%,#22170f 100%)' },
+    measurement: { biome: 'Clockwork Harbor', accent: '#5fd6d9', battleBg: 'linear-gradient(180deg,#103a44 0%,#122b30 100%)' },
+    geometry: { biome: 'Crystal Temple', accent: '#c083ff', battleBg: 'linear-gradient(180deg,#2a1845 0%,#201238 100%)' },
+    statistics: { biome: 'Data Jungle', accent: '#71d96f', battleBg: 'linear-gradient(180deg,#14351f 0%,#11281a 100%)' },
+  };
 
   // ---- CURRICULUM WORLDS & TOPICS ----
   const WORLDS = [
@@ -758,7 +830,7 @@ const G = (() => {
       const d=divs[rnd(0,divs.length-1)];
       const ans=rnd(2,10);
       const product=d*ans;
-      qs.push(mcq(`${product} ÷ ${d} = ?`,ans,[ans+1,ans-1,ans+2]));
+      qs.push(mcq(`${product} Ã· ${d} = ?`,ans,[ans+1,ans-1,ans+2]));
     }
     return qs;
   }
@@ -780,7 +852,7 @@ const G = (() => {
       const d=rnd(2,9);
       const ans=diff<3?rnd(10,50):rnd(10,99);
       const product=d*ans;
-      qs.push(typed(`${product} ÷ ${d} = ?`,ans));
+      qs.push(typed(`${product} Ã· ${d} = ?`,ans));
     }
     return qs;
   }
@@ -795,7 +867,7 @@ const G = (() => {
       } else if(t===1){
         const n=rnd(1,99);
         const ans=(n/10).toFixed(1);
-        qs.push(mcq(`${n} ÷ 10 = ?`,ans,[(n/10+1).toFixed(1),(n/10-0.1).toFixed(1),(n*10).toString()]));
+        qs.push(mcq(`${n} Ã· 10 = ?`,ans,[(n/10+1).toFixed(1),(n/10-0.1).toFixed(1),(n*10).toString()]));
       } else {
         const n=rnd(1,9);
         const ans=n*10;
@@ -922,7 +994,7 @@ const G = (() => {
       qs.push({
         question:`${a.toLocaleString()} ? ${b.toLocaleString()}`,
         answer:correct,
-        options:shuffle(['>','<','=',correct==='>'?'≤':'≥']),
+        options:shuffle(['>','<','=',correct==='>'?'â‰¤':'â‰¥']),
         type:'choice'
       });
     }
@@ -961,7 +1033,7 @@ const G = (() => {
       if(t===0){const a=rnd(10,500),b=rnd(10,500);qs.push(typed(`${a} + ? = ${a+b}`,b));}
       else if(t===1){const a=rnd(100,999),b=rnd(10,a-1);qs.push(typed(`${a} - ? = ${a-b}`,b));}
       else if(t===2){const a=rnd(2,10),b=rnd(2,10);qs.push(typed(`${a} x ? = ${a*b}`,b));}
-      else{const a=rnd(2,10),b=rnd(2,10);qs.push(typed(`? ÷ ${a} = ${b}`,a*b));}
+      else{const a=rnd(2,10),b=rnd(2,10);qs.push(typed(`? Ã· ${a} = ${b}`,a*b));}
     }
     return qs;
   }
@@ -999,7 +1071,7 @@ const G = (() => {
       {q:'How long does it take to walk 1 km?',a:'15 minutes',d:['1 minute','1 hour','15 seconds']},
       {q:'About how wide is your thumbnail?',a:'1 cm',d:['1 mm','10 cm','1 m']},
       {q:'About how much does a cat weigh?',a:'4 kg',d:['400 g','40 kg','4 g']},
-      {q:'About how hot is a warm bath?',a:'38°C',d:['10°C','80°C','100°C']},
+      {q:'About how hot is a warm bath?',a:'38Â°C',d:['10Â°C','80Â°C','100Â°C']},
     ];
     shuffle(benchmarks);
     for(let i=0;i<Math.min(10,benchmarks.length);i++){
@@ -1033,19 +1105,19 @@ const G = (() => {
   function generateTemperature(diff) {
     const qs=[];
     const scenarios=[
-      {q:'Water freezes at what temperature?',a:'0°C',d:['10°C','100°C','-10°C']},
-      {q:'Water boils at what temperature?',a:'100°C',d:['0°C','50°C','200°C']},
-      {q:'A comfortable room is about?',a:'20°C',d:['5°C','35°C','50°C']},
-      {q:'A hot summer day might be?',a:'30°C',d:['10°C','50°C','0°C']},
-      {q:'A cold winter day might be?',a:'5°C',d:['25°C','-20°C','40°C']},
+      {q:'Water freezes at what temperature?',a:'0Â°C',d:['10Â°C','100Â°C','-10Â°C']},
+      {q:'Water boils at what temperature?',a:'100Â°C',d:['0Â°C','50Â°C','200Â°C']},
+      {q:'A comfortable room is about?',a:'20Â°C',d:['5Â°C','35Â°C','50Â°C']},
+      {q:'A hot summer day might be?',a:'30Â°C',d:['10Â°C','50Â°C','0Â°C']},
+      {q:'A cold winter day might be?',a:'5Â°C',d:['25Â°C','-20Â°C','40Â°C']},
     ];
     for(let i=0;i<10;i++){
       if(i<scenarios.length){qs.push(mcq(scenarios[i].q,scenarios[i].a,scenarios[i].d));}
       else{
         const start=rnd(5,30),change=rnd(3,15);
         const op=rnd(0,1);
-        if(op===0){qs.push(mcq(`Temperature is ${start}°C, rises ${change}°C. Now?`,`${start+change}°C`,[`${start-change}°C`,`${change}°C`,`${start}°C`]));}
-        else{qs.push(mcq(`Temperature is ${start}°C, drops ${change}°C. Now?`,`${start-change}°C`,[`${start+change}°C`,`${change}°C`,`${start}°C`]));}
+        if(op===0){qs.push(mcq(`Temperature is ${start}Â°C, rises ${change}Â°C. Now?`,`${start+change}Â°C`,[`${start-change}Â°C`,`${change}Â°C`,`${start}Â°C`]));}
+        else{qs.push(mcq(`Temperature is ${start}Â°C, drops ${change}Â°C. Now?`,`${start-change}Â°C`,[`${start+change}Â°C`,`${change}Â°C`,`${start}Â°C`]));}
       }
     }
     return qs;
@@ -1073,7 +1145,7 @@ const G = (() => {
     for(let i=0;i<10;i++){
       const w=rnd(2,12),h=rnd(2,12);
       const a=w*h;
-      qs.push(mcq(`Rectangle: ${w} cm x ${h} cm. Area = ?`,`${a} cm²`,[`${2*(w+h)} cm²`,`${a+w} cm²`,`${w+h} cm²`]));
+      qs.push(mcq(`Rectangle: ${w} cm x ${h} cm. Area = ?`,`${a} cmÂ²`,[`${2*(w+h)} cmÂ²`,`${a+w} cmÂ²`,`${w+h} cmÂ²`]));
     }
     return qs;
   }
@@ -1091,18 +1163,18 @@ const G = (() => {
   function generateAngles(diff) {
     const qs=[];
     const types=[
-      {q:'A right angle is how many degrees?',a:'90°',d:['45°','180°','360°']},
-      {q:'A straight line angle is how many degrees?',a:'180°',d:['90°','360°','270°']},
-      {q:'A full turn is how many degrees?',a:'360°',d:['180°','90°','270°']},
-      {q:'An angle smaller than 90° is called?',a:'Acute',d:['Obtuse','Right','Reflex']},
-      {q:'An angle larger than 90° but less than 180° is called?',a:'Obtuse',d:['Acute','Right','Reflex']},
+      {q:'A right angle is how many degrees?',a:'90Â°',d:['45Â°','180Â°','360Â°']},
+      {q:'A straight line angle is how many degrees?',a:'180Â°',d:['90Â°','360Â°','270Â°']},
+      {q:'A full turn is how many degrees?',a:'360Â°',d:['180Â°','90Â°','270Â°']},
+      {q:'An angle smaller than 90Â° is called?',a:'Acute',d:['Obtuse','Right','Reflex']},
+      {q:'An angle larger than 90Â° but less than 180Â° is called?',a:'Obtuse',d:['Acute','Right','Reflex']},
     ];
     for(let i=0;i<10;i++){
       if(i<types.length){qs.push(mcq(types[i].q,types[i].a,types[i].d));}
       else{
         const angle=rnd(1,35)*10;
         const type=angle<90?'Acute':(angle===90?'Right':(angle<180?'Obtuse':'Reflex'));
-        qs.push(mcq(`An angle of ${angle}° is...`,type,['Acute','Obtuse','Right','Reflex'].filter(t=>t!==type).slice(0,3)));
+        qs.push(mcq(`An angle of ${angle}Â° is...`,type,['Acute','Obtuse','Right','Reflex'].filter(t=>t!==type).slice(0,3)));
       }
     }
     return qs;
@@ -1202,10 +1274,10 @@ const G = (() => {
       {q:'Turning a shape around a point is called a?',a:'Rotation',d:['Reflection','Translation','Enlargement']},
       {q:'A mirror image of a shape is a?',a:'Reflection',d:['Translation','Rotation','Scaling']},
       {q:'Moving a shape up and right without changing it is a?',a:'Translation',d:['Reflection','Rotation','Scaling']},
-      {q:'A shape spun 90° clockwise is a?',a:'Rotation',d:['Reflection','Translation','Scaling']},
+      {q:'A shape spun 90Â° clockwise is a?',a:'Rotation',d:['Reflection','Translation','Scaling']},
       {q:'Which keeps a shape the same size: reflection, rotation, or both?',a:'Both',d:['Reflection only','Rotation only','Neither']},
-      {q:'A quarter turn = how many degrees?',a:'90°',d:['45°','180°','360°']},
-      {q:'A half turn = how many degrees?',a:'180°',d:['90°','270°','360°']},
+      {q:'A quarter turn = how many degrees?',a:'90Â°',d:['45Â°','180Â°','360Â°']},
+      {q:'A half turn = how many degrees?',a:'180Â°',d:['90Â°','270Â°','360Â°']},
       {q:'How many quarter turns in a full turn?',a:'4',d:['2','3','6']},
     ];
     shuffle(types);
@@ -1324,6 +1396,10 @@ const G = (() => {
   let battleState = null;
   let timerInterval = null;
 
+  function getWorldTheme(worldId) {
+    return WORLD_THEMES[worldId] || { biome: 'Training Grounds', accent: '#ffd700', battleBg: 'linear-gradient(180deg,#1a1a2e 0%,#16213e 100%)' };
+  }
+
   // ---- SCREEN MANAGEMENT ----
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -1337,6 +1413,8 @@ const G = (() => {
   // ---- MAP RENDERING ----
   function renderMap() {
     updateHeader();
+    ensureDailyQuest();
+    renderDailyQuest();
     const c = document.getElementById('worlds-container');
     c.innerHTML = '';
     WORLDS.forEach((w, wi) => {
@@ -1372,6 +1450,55 @@ const G = (() => {
     return Math.round(done / total * 100);
   }
 
+  function getQuestProgress() {
+    ensureDailyQuest();
+    const q = save.dailyQuest;
+    const answered = Math.max(0, save.totalAnswered - q.startAnswered);
+    const correct = Math.max(0, save.totalCorrect - q.startCorrect);
+    const wins = Math.max(0, (save.totalWins || 0) - q.startWins);
+    const goals = {
+      answered: { need: 10, value: answered },
+      correct: { need: 8, value: correct },
+      wins: { need: 1, value: wins },
+    };
+    const complete = goals.answered.value >= goals.answered.need
+      && goals.correct.value >= goals.correct.need
+      && goals.wins.value >= goals.wins.need;
+    return { goals, complete, claimed: !!q.claimed };
+  }
+
+  function claimDailyQuest() {
+    const status = getQuestProgress();
+    if (!status.complete || save.dailyQuest.claimed) return;
+    save.dailyQuest.claimed = true;
+    save.xp += 30;
+    save.totalXp += 30;
+    while (save.xp >= XP_PER_LEVEL(save.level)) {
+      save.xp -= XP_PER_LEVEL(save.level);
+      save.level++;
+    }
+    showToast('Daily Quest Complete! +30 XP');
+    saveGame();
+    renderMap();
+  }
+
+  function renderDailyQuest() {
+    const panel = document.getElementById('quest-panel');
+    if (!panel) return;
+    const status = getQuestProgress();
+    panel.innerHTML = `
+      <div class="pixel-border" style="background:rgba(0,0,0,0.62);padding:10px;color:#fff;border-radius:10px">
+        <div style="font-family:'Fredoka One',sans-serif;color:#ffe066;font-size:14px">🥷 Daily Ninja Quest</div>
+        <div style="font-size:11px;opacity:0.9;margin-top:4px">Answer: ${Math.min(status.goals.answered.value,status.goals.answered.need)}/${status.goals.answered.need}</div>
+        <div style="font-size:11px;opacity:0.9">Correct: ${Math.min(status.goals.correct.value,status.goals.correct.need)}/${status.goals.correct.need}</div>
+        <div style="font-size:11px;opacity:0.9">Wins: ${Math.min(status.goals.wins.value,status.goals.wins.need)}/${status.goals.wins.need}</div>
+        <button class="btn btn-gold" onclick="G.claimDailyQuest()" style="width:100%;margin-top:8px;font-size:12px;padding:8px" ${status.complete && !status.claimed ? '' : 'disabled'}>
+          ${status.claimed ? 'Claimed ✅' : (status.complete ? 'Claim +30 XP' : 'Complete Goals')}
+        </button>
+      </div>
+    `;
+  }
+
   function updateHeader() {
     document.getElementById('level-display').textContent = `Lv.${save.level}`;
     const belt = BELTS[save.belt];
@@ -1386,7 +1513,10 @@ const G = (() => {
   // ---- TOPIC RENDERING ----
   function renderTopics() {
     if (!currentWorld) return;
+    const theme = getWorldTheme(currentWorld.id);
     document.getElementById('world-title').innerHTML = `${currentWorld.emoji} ${currentWorld.name}`;
+    document.getElementById('world-title').style.color = theme.accent;
+    document.getElementById('world-biome').textContent = `${theme.biome} • Master topics to unlock worlds`;
     const grid = document.getElementById('topics-grid');
     grid.innerHTML = '';
     currentWorld.topics.forEach((t, ti) => {
@@ -1403,21 +1533,36 @@ const G = (() => {
         <div class="topic-stars">${'&#11088;'.repeat(progress.stars)}${'&#9734;'.repeat(3 - progress.stars)}</div>
         ${!unlocked ? '<span>&#128274;</span>' : ''}
       `;
-      if (unlocked) row.onclick = () => startBattle(t);
+      if (unlocked) {
+        row.onclick = () => startBattle(t);
+        if (progress.completed && progress.attempts >= 2) {
+          const speedBtn = document.createElement('button');
+          speedBtn.className = 'topic-speed-btn';
+          speedBtn.textContent = '⚡ Speed';
+          speedBtn.title = 'Fast 7-question speed round';
+          speedBtn.onclick = ev => {
+            ev.stopPropagation();
+            startBattle(t, true);
+          };
+          row.appendChild(speedBtn);
+        }
+      }
       grid.appendChild(row);
     });
   }
 
   // ---- BATTLE SYSTEM ----
-  function startBattle(topic) {
+  function startBattle(topic, speedMode = false) {
     currentTopic = topic;
     const diff = (save.topicProgress[topic.id]?.attempts || 0);
     const questions = topic.questions(Math.min(diff, 5));
     const enemyTemplate = ENEMIES[rnd(0, ENEMIES.length - 2)];
     const isBoss = (save.topicProgress[topic.id]?.attempts || 0) >= 2;
+    const questionCount = speedMode ? 7 : 10;
+    const timePerQ = speedMode ? 18 : (isBoss ? 24 : 30);
 
     battleState = {
-      questions: shuffle(questions).slice(0, 10),
+      questions: shuffle(questions).slice(0, questionCount),
       currentQ: 0,
       score: 0,
       combo: 0,
@@ -1427,12 +1572,21 @@ const G = (() => {
       enemyMaxHp: isBoss ? 8 : enemyTemplate.hp,
       enemyHp: isBoss ? 8 : enemyTemplate.hp,
       answered: false,
-      timePerQ: 30,
-      timeLeft: 30,
+      timePerQ,
+      timeLeft: timePerQ,
+      speedMode,
+      isBoss,
+      powerCharge: 0,
+      shieldArmed: false,
+      powerUsedThisQuestion: false,
     };
+
+    const theme = getWorldTheme(currentWorld?.id);
+    document.getElementById('battle-screen').style.background = theme.battleBg;
 
     showScreen('battle-screen');
     document.getElementById('battle-topic-name').textContent = topic.name;
+    document.getElementById('battle-mode').textContent = `${theme.biome}${speedMode ? ' • ⚡ Speed Round' : ''}`;
     if (isBoss) sfxBoss();
     showQuestion();
   }
@@ -1443,14 +1597,17 @@ const G = (() => {
       return;
     }
     battleState.answered = false;
+    battleState.powerUsedThisQuestion = false;
     const q = battleState.questions[battleState.currentQ];
     document.getElementById('question-text').textContent = q.question;
     document.getElementById('battle-question-num').textContent = `${battleState.currentQ + 1}/${battleState.questions.length}`;
     document.getElementById('enemy-name').textContent = battleState.enemy.name;
+    document.getElementById('battle-mode').textContent = `${getWorldTheme(currentWorld?.id).biome}${battleState.speedMode ? ' • ⚡ Speed Round' : ''}`;
     document.getElementById('enemy-sprite').innerHTML = battleState.enemy.emoji;
     document.getElementById('enemy-hp-fill').style.width = `${battleState.enemyHp / battleState.enemyMaxHp * 100}%`;
     document.getElementById('combo-text').textContent = battleState.combo > 1 ? `${battleState.combo}x COMBO!` : '';
     document.getElementById('streak-battle').innerHTML = `&#128293; ${save.streak} streak`;
+    updatePowerHud();
 
     const answersGrid = document.getElementById('answers-grid');
     const inputArea = document.getElementById('number-input-area');
@@ -1510,6 +1667,7 @@ const G = (() => {
 
     save.totalAnswered++;
     if (correct) {
+      battleState.shieldArmed = false;
       save.totalCorrect++;
       battleState.score++;
       battleState.combo++;
@@ -1544,13 +1702,16 @@ const G = (() => {
       document.getElementById('battle-screen').appendChild(xpPop);
       setTimeout(() => xpPop.remove(), 1500);
     } else {
-      battleState.combo = 0;
-      if (element.classList) element.classList.add('wrong');
-      sfxWrong();
-      // Screen shake
-      document.getElementById('battle-screen').classList.add('screen-shake');
-      setTimeout(() => document.getElementById('battle-screen').classList.remove('screen-shake'), 300);
-      // Show correct answer
+      if (battleState.shieldArmed) {
+        battleState.shieldArmed = false;
+        showComboBurst('Shield blocked miss!');
+      } else {
+        battleState.combo = 0;
+        if (element.classList) element.classList.add('wrong');
+        sfxWrong();
+        document.getElementById('battle-screen').classList.add('screen-shake');
+        setTimeout(() => document.getElementById('battle-screen').classList.remove('screen-shake'), 300);
+      }
       if (q.type !== 'typed') {
         document.querySelectorAll('.answer-btn').forEach(btn => {
           if (btn.textContent === q.answer) btn.classList.add('correct');
@@ -1558,15 +1719,29 @@ const G = (() => {
       }
     }
 
+    if (correct) {
+      battleState.powerCharge = Math.min(5, (battleState.powerCharge || 0) + 1);
+      if (battleState.combo > 0 && battleState.combo % 3 === 0) {
+        battleState.powerCharge = Math.min(5, battleState.powerCharge + 1);
+        showComboBurst(`Combo ${battleState.combo}x! +1 Charge`);
+      }
+    }
+
     battleState.currentQ++;
+    updatePowerHud();
     setTimeout(() => showQuestion(), correct ? 800 : 1500);
     saveGame();
   }
 
   function timeOut() {
     battleState.answered = true;
-    battleState.combo = 0;
-    sfxWrong();
+    if (battleState.shieldArmed) {
+      battleState.shieldArmed = false;
+      showComboBurst('Shield blocked timeout!');
+    } else {
+      battleState.combo = 0;
+      sfxWrong();
+    }
     const q = battleState.questions[battleState.currentQ];
     if (q.type !== 'typed') {
       document.querySelectorAll('.answer-btn').forEach(btn => {
@@ -1574,7 +1749,71 @@ const G = (() => {
       });
     }
     battleState.currentQ++;
+    updatePowerHud();
     setTimeout(() => showQuestion(), 1500);
+  }
+
+  function updatePowerHud() {
+    const charge = Math.max(0, battleState?.powerCharge || 0);
+    const shield = battleState?.shieldArmed ? ' • Shield ON' : '';
+    const chargeEl = document.getElementById('power-charge');
+    if (chargeEl) chargeEl.innerHTML = `&#9889; ${charge}/5 Elemental Charge${shield}`;
+    const answered = !!battleState?.answered;
+    const used = !!battleState?.powerUsedThisQuestion;
+    const disableStorm = answered || used || charge < 2;
+    const disableFreeze = answered || used || charge < 2;
+    const disableShield = answered || used || charge < 1 || battleState?.shieldArmed;
+    const stormBtn = document.getElementById('power-storm');
+    const freezeBtn = document.getElementById('power-freeze');
+    const shieldBtn = document.getElementById('power-shield');
+    if (stormBtn) stormBtn.disabled = disableStorm;
+    if (freezeBtn) freezeBtn.disabled = disableFreeze;
+    if (shieldBtn) shieldBtn.disabled = disableShield;
+  }
+
+  function showComboBurst(text) {
+    const area = document.getElementById('battle-screen');
+    if (!area) return;
+    const burst = document.createElement('div');
+    burst.className = 'combo-burst';
+    burst.textContent = text;
+    area.appendChild(burst);
+    setTimeout(() => burst.remove(), 900);
+  }
+
+  function usePower(kind) {
+    if (!battleState || battleState.answered || battleState.powerUsedThisQuestion) return;
+    if (kind === 'storm') {
+      if ((battleState.powerCharge || 0) < 2) return;
+      battleState.powerCharge -= 2;
+      battleState.powerUsedThisQuestion = true;
+      battleState.enemyHp = Math.max(0, battleState.enemyHp - 1);
+      document.getElementById('enemy-hp-fill').style.width = `${battleState.enemyHp / battleState.enemyMaxHp * 100}%`;
+      const sprite = document.getElementById('enemy-sprite');
+      const rect = sprite.getBoundingClientRect();
+      spawnParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, '#66d9ff', 26);
+      showComboBurst('Storm Strike!');
+      sfxCorrect();
+    } else if (kind === 'freeze') {
+      if ((battleState.powerCharge || 0) < 2) return;
+      battleState.powerCharge -= 2;
+      battleState.powerUsedThisQuestion = true;
+      battleState.timeLeft = Math.min(battleState.timePerQ, battleState.timeLeft + 8);
+      const pct = Math.max(0, battleState.timeLeft / battleState.timePerQ * 100);
+      const timerFill = document.getElementById('timer-fill');
+      timerFill.style.width = pct + '%';
+      timerFill.classList.remove('urgent');
+      showComboBurst('Time Freeze +8s');
+      sfxClick();
+    } else if (kind === 'shield') {
+      if ((battleState.powerCharge || 0) < 1 || battleState.shieldArmed) return;
+      battleState.powerCharge -= 1;
+      battleState.powerUsedThisQuestion = true;
+      battleState.shieldArmed = true;
+      showComboBurst('Shield Ready');
+      sfxClick();
+    }
+    updatePowerHud();
   }
 
   function endBattle() {
@@ -1588,6 +1827,7 @@ const G = (() => {
     // XP calculation
     let xpEarned = score * 10 + battleState.maxCombo * 5;
     if (stars === 3) xpEarned += 20;
+    if (battleState.speedMode) xpEarned += 15;
 
     // Update progress
     const prev = save.topicProgress[currentTopic.id] || { completed: false, stars: 0, bestScore: 0, attempts: 0 };
@@ -1598,6 +1838,8 @@ const G = (() => {
       attempts: prev.attempts + 1,
     };
     save.totalBattles++;
+    if (stars >= 1) save.totalWins = (save.totalWins || 0) + 1;
+    save.bestCombo = Math.max(save.bestCombo || 0, battleState.maxCombo);
 
     // Streak
     const today = new Date().toDateString();
@@ -1701,7 +1943,7 @@ const G = (() => {
     {id:'first_battle',name:'First Steps',desc:'Complete your first battle',icon:'&#128095;',check:()=>save.totalBattles>=1},
     {id:'streak_3',name:'On Fire',desc:'3 day streak',icon:'&#128293;',check:()=>save.bestStreak>=3},
     {id:'streak_7',name:'Unstoppable',desc:'7 day streak',icon:'&#128293;',check:()=>save.bestStreak>=7},
-    {id:'combo_5',name:'Combo Master',desc:'5x combo in battle',icon:'&#9889;',check:()=>save.totalCorrect>=50},
+    {id:'combo_5',name:'Combo Master',desc:'5x combo in battle',icon:'&#9889;',check:()=> (save.bestCombo || 0) >= 5},
     {id:'collect_5',name:'Creature Collector',desc:'Catch 5 creatures',icon:'&#128050;',check:()=>save.collection.length>=5},
     {id:'collect_all',name:'Gotta Catch Em All',desc:'Catch all creatures',icon:'&#127942;',check:()=>save.collection.length>=CREATURES.length},
     {id:'lv5',name:'Rising Ninja',desc:'Reach level 5',icon:'&#129399;',check:()=>save.level>=5},
@@ -1734,8 +1976,8 @@ const G = (() => {
         <h3>&#129399; Ninja Stats</h3>
         <p>Level: ${save.level} | Belt: ${BELTS[save.belt].name}</p>
         <p>Total XP: ${save.totalXp} | Streak: ${save.streak} days (Best: ${save.bestStreak})</p>
-        <p>Battles: ${save.totalBattles} | Accuracy: ${accuracy}%</p>
-        <p>Correct: ${save.totalCorrect} / ${save.totalAnswered}</p>
+        <p>Battles: ${save.totalBattles} | Wins: ${save.totalWins || 0} | Accuracy: ${accuracy}%</p>
+        <p>Correct: ${save.totalCorrect} / ${save.totalAnswered} | Best Combo: ${save.bestCombo || 0}x</p>
       </div>
       <div class="stats-section">
         <h3>&#128050; Creature Collection (${save.collection.length}/${CREATURES.length})</h3>
@@ -1891,6 +2133,7 @@ const G = (() => {
 
   // ---- INIT ----
   loadGame();
+  ensureDailyQuest();
 
   // ---- render_game_to_text ----
   window.render_game_to_text = () => JSON.stringify({
@@ -1902,14 +2145,19 @@ const G = (() => {
     battle: battleState ? {
       topic: currentTopic?.name, question: battleState.currentQ,
       score: battleState.score, combo: battleState.combo,
-      enemyHp: battleState.enemyHp,
+      enemyHp: battleState.enemyHp, speedMode: !!battleState.speedMode,
+      powerCharge: battleState.powerCharge || 0, shieldArmed: !!battleState.shieldArmed,
     } : null,
   });
 
-  window.advanceTime = (ms) => {};
+  window.advanceTime = (ms) => new Promise(resolve => setTimeout(resolve, Math.max(0, ms || 0)));
 
-  return { showScreen, startGame, submitTypedAnswer, replayBattle, checkAnswer };
+  return { showScreen, startGame, submitTypedAnswer, replayBattle, checkAnswer, usePower, claimDailyQuest };
 })();
 </script>
 </body>
 </html>
+
+
+
+
